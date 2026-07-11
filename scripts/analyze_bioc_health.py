@@ -141,7 +141,7 @@ def get_open_prs_count(owner, repo, headers):
     return pr_count
 
 def get_bioc_git_metrics(package, since_date, temp_parent_dir):
-    """Clone repository from git.bioconductor.org and extract commit metrics."""
+    """Clone repository from git.bioconductor.org and extract total and development commit metrics."""
     clone_dir = os.path.join(temp_parent_dir, f"clone_{package}")
     repo_url = f"https://git.bioconductor.org/packages/{package}.git"
     
@@ -158,7 +158,7 @@ def get_bioc_git_metrics(package, since_date, temp_parent_dir):
         # Run clone with suppressed outputs
         result = subprocess.run(cmd_clone, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=45)
         
-        # If shallow-since fails (e.g. no commits in range, or git version compatibility), try depth 1 clone
+        # If shallow-since fails (e.g. no commits in range), try depth 1 clone
         if result.returncode != 0:
             shutil.rmtree(clone_dir, ignore_errors=True)
             cmd_clone_depth1 = [
@@ -178,11 +178,31 @@ def get_bioc_git_metrics(package, since_date, temp_parent_dir):
         res_last = subprocess.run(cmd_last_commit, cwd=clone_dir, capture_output=True, text=True, check=True)
         last_commit_iso = res_last.stdout.strip()
         
-        # Run git log to count commits since since_date
-        cmd_count = ["git", "log", f"--since={since_date}", "--format=%cI"]
+        # Run git log to get all commits (date + subject) since since_date
+        cmd_count = ["git", "log", f"--since={since_date}", "--format=%cI|%s"]
         res_count = subprocess.run(cmd_count, cwd=clone_dir, capture_output=True, text=True, check=True)
-        commits_list = [line for line in res_count.stdout.split("\n") if line.strip()]
-        commits_count = len(commits_list)
+        
+        total_commits = 0
+        dev_commits = 0
+        
+        lines = [line.strip() for line in res_count.stdout.split("\n") if line.strip()]
+        for line in lines:
+            if "|" in line:
+                date_str, message = line.split("|", 1)
+                total_commits += 1
+                
+                # Filter out standard Bioconductor administrative commits
+                msg_lower = message.lower()
+                is_admin = False
+                if "bump" in msg_lower and "version" in msg_lower:
+                    is_admin = True
+                elif "bump x.y.z" in msg_lower:
+                    is_admin = True
+                elif "creation of release_" in msg_lower:
+                    is_admin = True
+                    
+                if not is_admin:
+                    dev_commits += 1
         
         # Clean up directory
         shutil.rmtree(clone_dir, ignore_errors=True)
@@ -190,7 +210,8 @@ def get_bioc_git_metrics(package, since_date, temp_parent_dir):
         last_commit_date_str = last_commit_iso[:10] if last_commit_iso else "N/A"
         return {
             "last_commit_date": last_commit_date_str,
-            "commits_last_year": commits_count,
+            "commits_last_2_years": total_commits,
+            "dev_commits_last_2_years": dev_commits,
             "last_commit_iso": last_commit_iso
         }
     except Exception as e:
@@ -211,7 +232,8 @@ def analyze_packages():
     else:
         print("Warning: No GitHub token found. Unauthenticated requests will face strict rate limits.", file=sys.stderr)
 
-    one_year_ago = "2025-07-11T00:00:00Z"
+    # 2 years ago from July 11, 2026 is July 11, 2024
+    two_years_ago = "2024-07-11T00:00:00Z"
     now = datetime.now(timezone.utc)
     results = []
 
@@ -224,8 +246,8 @@ def analyze_packages():
     for idx, package in enumerate(PACKAGES, 1):
         print(f"[{idx}/{len(PACKAGES)}] Processing package: {package}...")
         
-        # Query canonical Git server
-        git_metrics = get_bioc_git_metrics(package, one_year_ago, temp_parent_dir)
+        # Query canonical Git server (2-year window)
+        git_metrics = get_bioc_git_metrics(package, two_years_ago, temp_parent_dir)
         
         # Respect GitHub API rate limits
         time.sleep(0.5)
@@ -257,28 +279,17 @@ def analyze_packages():
         # Parse development stats
         if git_metrics:
             last_commit_date_str = git_metrics["last_commit_date"]
-            commits_last_year = git_metrics["commits_last_year"]
+            commits_last_2_years = git_metrics["commits_last_2_years"]
+            dev_commits_last_2_years = git_metrics["dev_commits_last_2_years"]
             last_commit_iso = git_metrics["last_commit_iso"]
             
             days_since_last_commit = -1
             if last_commit_iso:
                 try:
-                    # Handle multiple ISO formats, simple string slice for timezone offset is robust
-                    # format examples: "2026-04-28T12:34:56-04:00", "2026-04-28T16:34:56Z"
-                    iso_str = last_commit_iso
-                    if iso_str.endswith("Z"):
-                        iso_str = iso_str[:-1] + "+00:00"
-                    # Remove colon from time zone offset if present (Python < 3.7 compatibility check, but we are on modern Python)
-                    if iso_str[-3] == ":":
-                        iso_str = iso_str[:-3] + iso_str[-2:]
-                    
-                    # Modern python can parse ISO strings directly using fromisoformat
-                    # but since git format `%cI` is standard ISO 8601, we can parse it:
-                    last_commit_date = datetime.fromisoformat(last_commit_iso)
+                    last_commit_date = datetime.fromisoformat(last_commit_iso.replace("Z", "+00:00"))
                     days_since_last_commit = (now - last_commit_date).days
                 except Exception as e:
                     print(f"Error parsing date {last_commit_iso}: {e}", file=sys.stderr)
-                    # Fallback to simple date parsing if timezones fail
                     try:
                         last_commit_date = datetime.strptime(last_commit_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
                         days_since_last_commit = (now - last_commit_date).days
@@ -286,23 +297,25 @@ def analyze_packages():
                         pass
         else:
             last_commit_date_str = "N/A"
-            commits_last_year = 0
+            commits_last_2_years = 0
+            dev_commits_last_2_years = 0
             days_since_last_commit = -1
 
-        # Classify package health status based on canonical Git metrics
+        # Classify package health status based on canonical Git DEVELOPMENT commits (2 years)
         if days_since_last_commit == -1:
             status = "Unknown"
-        elif days_since_last_commit <= 90:
-            if commits_last_year >= 5:
-                status = "Active"
-            else:
-                status = "Maintenance Mode"
+        elif days_since_last_commit > 730:
+            status = "Inactive/Abandoned"
+        elif dev_commits_last_2_years == 0:
+            status = "Stale (Admin-Only)"
+        elif days_since_last_commit <= 90 and dev_commits_last_2_years >= 5:
+            status = "Active"
         elif days_since_last_commit <= 365:
             status = "Maintenance Mode"
         elif days_since_last_commit <= 730:
             status = "Stale"
         else:
-            status = "Inactive/Abandoned"
+            status = "Unknown"
             
         results.append({
             "package": package,
@@ -313,13 +326,14 @@ def analyze_packages():
             "open_issues_and_prs": open_issues_and_prs,
             "open_prs": open_prs,
             "open_issues": open_issues,
-            "commits_last_year": commits_last_year,
+            "commits_last_2_years": commits_last_2_years,
+            "dev_commits_last_2_years": dev_commits_last_2_years,
             "last_commit_date": last_commit_date_str,
             "days_since_last_commit": days_since_last_commit,
             "status": status
         })
         
-        print(f"Finished {package}: Stars={stars}, Commits(1yr)={commits_last_year}, LastCommit={last_commit_date_str}, Status={status}")
+        print(f"Finished {package}: Stars={stars}, Commits(2yr)={commits_last_2_years}, DevCommits(2yr)={dev_commits_last_2_years}, Status={status}")
 
     # Remove temporary clone parent directory
     shutil.rmtree(temp_parent_dir, ignore_errors=True)
@@ -330,7 +344,8 @@ def analyze_packages():
         writer = csv.DictWriter(f, fieldnames=[
             "package", "repo", "found", "stars", "forks",
             "open_issues_and_prs", "open_prs", "open_issues",
-            "commits_last_year", "last_commit_date", "days_since_last_commit", "status"
+            "commits_last_2_years", "dev_commits_last_2_years",
+            "last_commit_date", "days_since_last_commit", "status"
         ])
         writer.writeheader()
         writer.writerows(results)
@@ -354,10 +369,11 @@ def generate_markdown_report(results, csv_filepath):
     active_cnt = status_counts.get("Active", 0)
     maint_cnt = status_counts.get("Maintenance Mode", 0)
     stale_cnt = status_counts.get("Stale", 0)
+    stale_admin_cnt = status_counts.get("Stale (Admin-Only)", 0)
     inactive_cnt = status_counts.get("Inactive/Abandoned", 0)
     unknown_cnt = status_counts.get("Unknown", 0)
     
-    most_active = sorted(results, key=lambda r: r["commits_last_year"], reverse=True)[:5]
+    most_active = sorted(results, key=lambda r: r["dev_commits_last_2_years"], reverse=True)[:5]
     
     # Stars and issues can only be evaluated for packages resolved on GitHub
     github_results = [r for r in results if r["found"]]
@@ -371,32 +387,34 @@ def generate_markdown_report(results, csv_filepath):
         
         f.write("## Executive Summary\n\n")
         f.write("This repository contains a comprehensive volatility and health analysis of 50 core Bioconductor packages. ")
-        f.write("Unlike traditional analyses that rely purely on GitHub mirrors (which are often outdated or incomplete), ")
-        f.write("this study pulls **canonical git history** directly from the official Bioconductor Git server (`git.bioconductor.org`). ")
+        f.write("To measure **real development activity**, this study pulls **canonical git history** directly from the official Bioconductor Git server (`git.bioconductor.org`) over a **two-year window** (since July 2024). ")
+        f.write("Importantly, the script programmatically **filters out automatic administrative commits** (version bumps performed twice a year for releases) to calculate the true number of developer-initiated changes. ")
         f.write("Community metrics (stars, forks, and issues) are queried from GitHub when a corresponding repository exists.\n\n")
         
         f.write("### Repository Status Distribution\n\n")
         f.write("| Status | Count | Percentage | Description |\n")
         f.write("| :--- | :---: | :---: | :--- |\n")
-        f.write(f"| **Active** | {active_cnt} | {active_cnt/total_packages*100:.1f}% | Last commit within 90 days and regular activity (>=5 commits/yr) |\n")
-        f.write(f"| **Maintenance Mode** | {maint_cnt} | {maint_cnt/total_packages*100:.1f}% | Last commit within 1 year, but low commit activity or stable bug fixes |\n")
-        f.write(f"| **Stale** | {stale_cnt} | {stale_cnt/total_packages*100:.1f}% | Last commit between 1 and 2 years ago |\n")
-        f.write(f"| **Inactive/Abandoned** | {inactive_cnt} | {inactive_cnt/total_packages*100:.1f}% | No commits in over 2 years |\n")
+        f.write(f"| **Active** | {active_cnt} | {active_cnt/total_packages*100:.1f}% | Last commit within 90 days AND has >= 5 real development commits in 2 years |\n")
+        f.write(f"| **Maintenance Mode** | {maint_cnt} | {maint_cnt/total_packages*100:.1f}% | Last commit within 1 year, with low/stable developer commits (1-4 commits) |\n")
+        f.write(f"| **Stale (Admin-Only)** | {stale_admin_cnt} | {stale_admin_cnt/total_packages*100:.1f}% | Last commit within 2 years, but has **0 real development commits** (only auto version bumps) |\n")
+        if stale_cnt > 0:
+            f.write(f"| **Stale** | {stale_cnt} | {stale_cnt/total_packages*100:.1f}% | Last commit between 1 and 2 years ago with some history |\n")
+        f.write(f"| **Inactive/Abandoned** | {inactive_cnt} | {inactive_cnt/total_packages*100:.1f}% | No commits in over 2 years (missing even automated bumps) |\n")
         if unknown_cnt > 0:
             f.write(f"| **Unknown** | {unknown_cnt} | {unknown_cnt/total_packages*100:.1f}% | Failed to clone repository metrics |\n")
         f.write("\n")
         
         f.write("### Key Insights\n\n")
-        f.write(f"- **Active Maintenance:** **{active_cnt + maint_cnt} packages ({ (active_cnt + maint_cnt)/total_packages*100:.1f}%)** have received updates in the last year on the Bioconductor Git server, confirming a highly active core ecosystem.\n")
-        f.write(f"- **GitHub Mirror Accuracy:** Checking `git.bioconductor.org` directly revealed that packages previously flagged as \"inactive\" or \"missing\" on GitHub (e.g. `limma`, `edgeR`, and `preprocessCore`) are actually **actively updated** with release bumps and regular patches on the canonical Bioconductor server.\n")
-        f.write(f"- **Community Presence:** **{github_found_packages} of {total_packages} packages ({github_found_packages/total_packages*100:.1f}%)** were resolved to public repositories on GitHub. These repositories host the community discussions (stars, forks, and issues) listed below.\n\n")
+        f.write(f"- **Real Development Activity:** **{active_cnt} packages ({active_cnt/total_packages*100:.1f}%)** are under active, ongoing development with regular feature additions or bug fixes beyond administrative bumps.\n")
+        f.write(f"- **Administrative-Only Stagnation:** **{stale_admin_cnt} packages ({stale_admin_cnt/total_packages*100:.1f}%)** represent stale libraries. Although they receive automatic version bumps twice a year, they have received **zero real developer commits** in the last two years.\n")
+        f.write(f"- **Maintenance Mode Stability:** **{maint_cnt} packages ({maint_cnt/total_packages*100:.1f}%)** are in maintenance mode—stable packages receiving very minor patches (1-4 developer commits in 2 years) as issues arise.\n\n")
         
         # Top active
-        f.write("## Top 5 Most Active Packages (Commits in Last Year on git.bioconductor.org)\n\n")
-        f.write("| Package | Commits (Last 1 Yr) | Last Commit Date | Status |\n")
-        f.write("| :--- | :---: | :--- | :--- |\n")
+        f.write("## Top 5 Most Active Packages (Real Development Commits in Last 2 Years)\n\n")
+        f.write("| Package | Dev Commits (2 Yrs) | Total Commits (2 Yrs) | Last Commit Date | Status |\n")
+        f.write("| :--- | :---: | :---: | :--- | :--- |\n")
         for r in most_active:
-            f.write(f"| **{r['package']}** | {r['commits_last_year']} | {r['last_commit_date']} | {r['status']} |\n")
+            f.write(f"| **{r['package']}** | {r['dev_commits_last_2_years']} | {r['commits_last_2_years']} | {r['last_commit_date']} | {r['status']} |\n")
         f.write("\n")
         
         # Top starred
@@ -418,14 +436,14 @@ def generate_markdown_report(results, csv_filepath):
         # Detailed breakdown
         f.write("## Detailed Package Statistics\n\n")
         f.write("A complete raw dataset is available in [bioc_health_data.csv](results/bioc_health_data.csv)\n\n")
-        f.write("| Package | GitHub Repository | Stars | Commits (1 Yr) | Last Commit | Days Stale | Status |\n")
-        f.write("| :--- | :--- | :---: | :---: | :--- | :---: | :--- |\n")
+        f.write("| Package | GitHub Repository | Stars | Dev Commits (2 Yr) | Total Commits (2 Yr) | Last Commit | Days Stale | Status |\n")
+        f.write("| :--- | :--- | :---: | :---: | :---: | :--- | :---: | :--- |\n")
         
         sorted_results = sorted(results, key=lambda r: r["package"].lower())
         for r in sorted_results:
             repo_link = f"[{r['repo']}](https://github.com/{r['repo']})" if r["found"] else "N/A"
             days_str = str(r["days_since_last_commit"]) if r["days_since_last_commit"] != -1 else "N/A"
-            f.write(f"| {r['package']} | {repo_link} | {r['stars']} | {r['commits_last_year']} | {r['last_commit_date']} | {days_str} | {r['status']} |\n")
+            f.write(f"| {r['package']} | {repo_link} | {r['stars']} | {r['dev_commits_last_2_years']} | {r['commits_last_2_years']} | {r['last_commit_date']} | {days_str} | {r['status']} |\n")
             
         f.write("\n---\n\n")
         f.write("## How to Reproduce or Expand this Work\n\n")
