@@ -1,0 +1,51 @@
+package,repo,found,stars,forks,open_issues_and_prs,open_prs,open_issues,commits_last_year,last_commit_date,days_since_last_commit,status
+S4Vectors,Bioconductor/S4Vectors,True,18,23,29,1,28,36,2026-07-07,4,Active
+AnnotationDbi,Bioconductor/AnnotationDbi,True,10,10,5,2,3,7,2026-04-28,73,Active
+IRanges,Bioconductor/IRanges,True,23,12,14,4,10,24,2026-07-01,9,Active
+SummarizedExperiment,Bioconductor/SummarizedExperiment,True,38,10,27,0,27,8,2026-04-28,73,Active
+GenomicRanges,Bioconductor/GenomicRanges,True,47,21,35,4,31,20,2026-07-07,3,Active
+BiocGenerics,Bioconductor/BiocGenerics,True,13,10,1,0,1,25,2026-07-07,4,Active
+Biostrings,Bioconductor/Biostrings,True,68,17,26,3,23,25,2026-07-04,6,Active
+Biobase,Bioconductor/Biobase,True,9,11,4,2,2,6,2026-04-28,73,Active
+BiocParallel,Bioconductor/BiocParallel,True,69,31,35,2,33,6,2026-04-29,72,Active
+BSgenome,Bioconductor/BSgenome,True,9,8,8,1,7,9,2026-04-28,73,Active
+limma,cran/limma,True,13,3,0,0,0,0,2007-09-24,6865,Inactive/Abandoned
+SingleCellExperiment,drisso/SingleCellExperiment,True,75,20,15,0,15,7,2026-05-14,58,Active
+Seqinfo,Bioconductor/Seqinfo,True,1,1,1,0,1,9,2026-04-28,73,Active
+GenomicFeatures,Bioconductor/GenomicFeatures,True,27,10,10,1,9,12,2026-04-28,73,Active
+GenomeInfoDb,Bioconductor/GenomeInfoDb,True,35,14,6,0,6,15,2026-05-22,49,Active
+rtracklayer,N/A,False,0,0,0,0,0,0,N/A,-1,Not Found
+Rsamtools,Bioconductor/Rsamtools,True,30,31,19,4,15,9,2026-04-28,73,Active
+oligoClasses,jmacdon/oligoClasses,True,0,0,0,0,0,0,2020-08-10,2160,Inactive/Abandoned
+oligo,benilton/oligo,True,3,2,1,0,1,0,2025-03-08,489,Stale
+edgeR,davidrequena/edgeR,True,4,0,0,0,0,0,2018-02-06,3077,Inactive/Abandoned
+ExperimentHub,Bioconductor/ExperimentHub,True,11,14,7,0,7,10,2026-06-15,25,Active
+AnnotationHub,Bioconductor/AnnotationHub,True,19,16,10,0,10,11,2026-06-30,10,Active
+ComplexHeatmap,jokergoo/ComplexHeatmap,True,1520,249,232,4,228,3,2026-04-02,100,Maintenance Mode
+DESeq2,thelovelab/DESeq2,True,467,113,1,0,1,29,2026-03-12,120,Maintenance Mode
+BiocFileCache,Bioconductor/BiocFileCache,True,14,9,11,0,11,11,2026-04-28,73,Active
+graph,Bioconductor/graph,True,6,9,5,1,4,7,2026-04-28,73,Active
+DelayedArray,Bioconductor/DelayedArray,True,29,11,21,0,21,19,2026-05-26,45,Active
+GenomicAlignments,Bioconductor/GenomicAlignments,True,11,15,11,3,8,11,2026-07-07,3,Active
+biomaRt,Huber-group-EMBL/biomaRt,True,50,18,42,1,41,178,2026-07-01,9,Active
+VariantAnnotation,Bioconductor/VariantAnnotation,True,31,21,56,22,34,8,2026-04-28,73,Active
+SpatialExperiment,drighelli/SpatialExperiment,True,74,21,35,5,30,0,2025-05-08,428,Stale
+rhdf5,Bioconductor/rhdf5,True,0,0,0,0,0,0,2023-10-24,990,Inactive/Abandoned
+MultiAssayExperiment,waldronlab/MultiAssayExperiment,True,76,35,1,0,1,37,2026-04-29,72,Active
+MatrixGenerics,Bioconductor/MatrixGenerics,True,12,1,5,0,5,4,2026-04-28,73,Maintenance Mode
+affy,Bioconductor/affy,True,0,0,0,0,0,0,2023-07-12,1094,Inactive/Abandoned
+qvalue,StoreyLab/qvalue,True,122,38,7,2,5,0,2023-09-01,1043,Inactive/Abandoned
+flowCore,RGLab/flowCore,True,60,26,40,2,38,15,2026-05-27,44,Active
+BiocStyle,Bioconductor/BiocStyle,True,15,19,37,6,31,6,2026-04-28,73,Active
+preprocessCore,N/A,False,0,0,0,0,0,0,N/A,-1,Not Found
+HDF5Array,Bioconductor/HDF5Array,True,12,14,9,1,8,8,2026-04-28,73,Active
+XVector,Bioconductor/XVector,True,3,3,1,0,1,7,2026-04-28,73,Active
+scater,alanocallaghan/scater,True,95,40,1,0,1,16,2026-04-29,73,Active
+impute,N/A,False,0,0,0,0,0,0,N/A,-1,Not Found
+Rgraphviz,cran/Rgraphviz,True,0,0,0,0,0,0,2008-05-30,6616,Inactive/Abandoned
+GSEABase,Bioconductor/GSEABase,True,6,11,2,0,2,8,2026-04-28,73,Active
+ggtree,YuLab-SMU/ggtree,True,928,183,195,1,194,65,2026-04-29,73,Active
+minfi,hansenlab/minfi,True,64,75,133,8,125,0,2024-04-30,802,Inactive/Abandoned
+sva,jtleek/sva,True,3,3,0,0,0,0,2015-10-13,3923,Inactive/Abandoned
+clusterProfiler,YuLab-SMU/clusterProfiler,True,1214,268,365,0,365,76,2026-07-09,2,Active
+txdbmaker,Bioconductor/txdbmaker,True,5,2,7,0,7,12,2026-04-28,73,Active
